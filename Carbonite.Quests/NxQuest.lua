@@ -130,7 +130,7 @@ local defaults = {
 			HCheckCompleted = false,
 			maxLoadLevel = false,
 			LevelsToLoad = 10,
-			MapQuestGiversHighLevel = 110,
+			MapQuestGiversHighLevel = 60,
 			MapQuestGiversLowLevel = 1,
 			MapShowWatchAreas = true,
 			MapWatchAreaAlpha = "1|1|1|.4",
@@ -2982,7 +2982,7 @@ function Nx.Quest:ProcessQuestDB(questTotal)
 	local enFact = Nx.PlFactionNum == 1 and 1 or 2
 	local qLoadLevel = max(1, UnitLevel ("player") + Nx.qdb.profile.Quest.LevelsToLoad)
 	local qMaxLevel = 999
-print(qLoadLevel)
+
 	for mungeId, q in pairs (Nx.Quests) do
 		if mungeId < 0 then
 			if Nx.Quests[abs(mungeId)] then
@@ -3804,10 +3804,12 @@ function Nx.Quest:RecordQuestsLog()
 
 						local total = qT[n + 100]
 
-						local desc, done = self:CalcDesc (qId, n, cnt, total)
-
-						cur[n] = desc
-
+						--local desc, done = self:CalcDesc (qId, n, cnt, total)
+						--cur[n] = desc
+						
+						cur[n] = qT[n + 200]
+						local done = qT[n + 300]
+						
 						done = cur[n + 200] and done
 						cur[n + 200] = done
 
@@ -3858,8 +3860,11 @@ function Nx.Quest:RecordQuestsLog()
 
 						local total = qT[n + 100]
 
-						cur[n], cur[n + 100] = self:CalcDesc (qId, n, cnt, total)
-
+						--cur[n], cur[n + 100] = self:CalcDesc (qId, n, cnt, total)
+						
+						cur[n] = qT[n + 200]
+						cur[n + 100] = qT[n + 300]
+						
 						cur[n + 400] = cur.PartyNames
 
 						if not cur[n + 100] then
@@ -4244,16 +4249,16 @@ function Nx.Quest:QuestQueryTimer()
 	end
 end
 
-local firstTimeEmpty = true
 function Nx.Quest:CalcDesc (qId, objI, cnt, total)
-	--local odesc = GetQuestObjectiveInfo(qId, objI, false);
-	--local _, _, desc = strmatch (odesc or "", "(%d+)/(%d+) (.+)")
+
+	local odesc = Nx.Quest:GetQuestObjectiveInfo(qId, objI, false);
+	local desc, _, _ = strmatch (odesc or "", "(.+): (%d+)/(%d+)")
 	
 	if not desc then
 		desc = odesc or "?"
 	end
 	
-	--Nx.prt("%s, %s, %s", qId, objI, odesc)
+--	Nx.prt("%s, %s, %s, %s, %s", qId, objI, desc, cnt, total)
 	
 	if total == 0 then
 		return desc, cnt == 1
@@ -4262,6 +4267,17 @@ function Nx.Quest:CalcDesc (qId, objI, cnt, total)
 	end
 end
 
+function Nx.Quest:GetQuestObjectiveInfo(qId, objI, qText)
+	local obj = C_QuestLog.GetQuestObjectives(qId)
+
+	obj = (obj and obj[objI]) or nil
+	
+	if obj then
+		return obj.text, obj.type, obj.finished
+	end
+	
+	return 
+end
 
 function Nx.Quest:GetLogIdLevel (questID)
 	if questID > 0 then
@@ -4282,7 +4298,7 @@ function Nx.Quest:CreateLink (qId, realLevel, title)
 	if realLevel <= 0 then	-- Could be a 0
 		realLevel = -1
 	end
-	return format ("|cffffff00|Hquest:%s:%s|h[%s]|h|r", qId, realLevel, title)
+	return format ("\124cffffff00\124Hquest:%s:%s\124h[%s]\124h\124r", qId, realLevel, title)
 end
 
 function Nx.Quest:ExtractTitle (title)
@@ -6677,11 +6693,14 @@ function Nx.Quest.List:MakeDescLink (cur, id, debug)
 		level = UnitLevel ("player") or 0
 	end
 	
-	local s = GetQuestLink(qId) or '' --Quest:CreateLink (qId, realLevel, title)
+	local s = title --Quest:CreateLink (qId, realLevel, title) or '' --
 
 	-- Needs a leading space according to Blizzard. White color breaks link
 	if quest and Nx.qdb.profile.Quest.ShowLinkExtra then
 		local part = Quest:GetPartTitle (quest, cur) or ''
+		if part ~= "" then
+			part = " " .. part
+		end
 		if level > 0 then
 			s = format (" [%s] %s%s", level, s, part)
 		else 
@@ -6725,13 +6744,13 @@ function Nx.Quest.List:Refresh(event)
 			if not hideLegionEmmissaries and pLvl > 109 then emmLegion = GetQuestBountyInfoForMapID(619) end
 		end
 		
-		Nx.Quest:RecordQuests(isInst and 0 or nil)
 		Nx.Quest.List:LogUpdate()
+		Nx.Quest:RecordQuests(isInst and 0 or nil)
 	end
 	
-	--[[Nx.Quest.List:LogUpdate()
+	--Nx.Quest.List:LogUpdate()
 	
-	local func = function(timer)	
+	--[[local func = function(timer)	
 		C_Timer.After(.5, function()
 			--Nx.Quest:ScanBlizzQuestDataZone()
 			Nx.Quest:RecordQuests()
@@ -7317,7 +7336,7 @@ function Nx.Quest.List:Update()
 		local mapId = Map:GetCurrentMapId()
 
 		local minLevel = UnitLevel ("player") - GetQuestGreenRange()
-		local maxLevel = showHighLevel and 110 or UnitLevel ("player") + 6
+		local maxLevel = showHighLevel and 60 or UnitLevel ("player") + 6
 
 		-- Divider
 
@@ -10073,7 +10092,7 @@ function Nx.Quest.Watch:Add (curi,addnew)
 		Quest:PartyStartSend()
 	end
 	local qStatus = Nx.Quest:GetQuest (qId)
-	if not qStatus then
+	if not qStatus ~= "W" then
 		Nx.Quest:SetQuest (qId, "W")
 		Quest:PartyStartSend()
 	end
@@ -11383,7 +11402,11 @@ function Nx.Quest:OnPartyMsg (plName, msg)
 	if Nx.qdb and Nx.qdb.profile and not Nx.qdb.profile.Quest.PartyShare then
 		return
 	end
-
+	
+	local msgA = {Nx.Split("|", msg)}
+	
+	msg = msgA[1]
+	
 	-- msg = "Qp1iiiifo111122223333"
 
 --	Nx.prt ("OnPartyMsg %s: %s", plName, msg)
@@ -11427,13 +11450,17 @@ function Nx.Quest:OnPartyMsg (plName, msg)
 	--			Nx.prt ("%s: %s %x %s", plName, qId, flgs, oCnt)
 
 				for i = 1, oCnt do
-
+					
+					local desc, done = Nx.Split("^", msgA[i + 1])
+					
 					local o = off + 6 + (i - 1) * 4
 					local cnt = tonumber (strsub (msg, o, o + 1), 16) or 0
 					local total = tonumber (strsub (msg, o + 2, o + 3), 16) or 0
 
 					q[i] = cnt
 					q[i + 100] = total
+					q[i + 200] = desc
+					q[i + 300] = done == 1 and true or false
 				end
 			end
 
@@ -11477,6 +11504,7 @@ function Nx.Quest:PartyStartSend()
 	end
 end
 
+local PartySendTimer
 function Nx.Quest:PartyBuildSendData()
 
 	local data = {}
@@ -11499,12 +11527,16 @@ function Nx.Quest:PartyBuildSendData()
 			end
 
 			local str = format ("%04x%c%c", qId, flgs + 35, cur.LBCnt + 35)
-
+			local strO = ""
+			
 			for n = 1, cur.LBCnt do
 
 				local _, _, cnt, total = strfind (cur[n], "(%d+)/(%d+)")
 				cnt = tonumber (cnt)
 				total = tonumber (total)
+
+				local desc, done = self:CalcDesc (qId, n, cnt, total)
+				cur[n] = desc
 
 				if cnt and total then
 					if cnt > 200 then
@@ -11519,22 +11551,21 @@ function Nx.Quest:PartyBuildSendData()
 				end
 
 				str = str .. format ("%02x%02x", cnt, total)
+				
+				if desc then
+					strO = strO .. "|" .. desc .. "^" .. (done and 1 or 0)
+				end
 			end
 
-			sendStr = sendStr .. str
+			sendStr = sendStr .. str .. strO
 
-			if #sendStr > 80 then
-				tinsert (data, sendStr)
-				sendStr = ""
-			end
+			
+			tinsert (data, sendStr)
+			sendStr = ""
 		end
 	end
 
-	if #sendStr > 0 or #data == 0 then
-		tinsert (data, sendStr)
-	end
-
-	QSendParty = Nx:ScheduleTimer(self.PartySendTimer,0,self)
+	PartySendTimer = Nx:ScheduleRepeatingTimer(self.PartySendTimer,0,self)
 
 	return 0
 end
@@ -11552,8 +11583,8 @@ function Nx.Quest:PartySendTimer()
 
 	self.PartySendDataI = qi + 1
 
-	if self.PartySendData[self.PartySendDataI] then
-		return .15
+	if not self.PartySendData[self.PartySendDataI] then
+		Nx:CancelTimer(PartySendTimer)
 	end
 end
 
